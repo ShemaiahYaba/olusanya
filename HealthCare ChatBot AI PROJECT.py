@@ -6,11 +6,12 @@ from sklearn import preprocessing
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.model_selection import train_test_split
 from sklearn import model_selection
+import streamlit as st
+import matplotlib.pyplot as plt
 
 #for ignoring the warnings
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
-import matplotlib.pyplot as plt
 
 # Importing the dataset
 training = pd.read_csv('Training.csv')
@@ -54,6 +55,8 @@ def greeting(sentence):
     for word in sentence.split():
         if word.lower() in GREETING_INPUTS:
             return random.choice(GREETING_RESPONSES)
+    return None
+
 def print_disease(node):
     node = node[0]
     val  = node.nonzero() 
@@ -157,3 +160,155 @@ while(flag==True):
     else:
         flag=False
         print("MTU-HEALTH-CARE-AI-POWERED-CHATBOT: Bye! take care..")    
+
+# --- Data/model loading ---
+@st.cache_resource
+def load_data_and_model():
+    training = pd.read_csv('Training.csv')
+    cols = training.columns[:-1]
+    x = training[cols]
+    y = training['prognosis']
+    reduced_data = training.groupby(training['prognosis']).max()
+    le = preprocessing.LabelEncoder()
+    le.fit(y)
+    y_enc = le.transform(y)
+    clf = DecisionTreeClassifier().fit(x, y_enc)
+    return clf, le, cols, reduced_data
+
+clf, le, cols, reduced_data = load_data_and_model()
+
+@st.cache_data
+def load_consult():
+    df = pd.read_csv('doc_consult.csv', header=None, index_col=0)
+    consult = df[1].to_dict()
+    return consult
+consult = load_consult()
+
+# --- UI/UX setup ---
+st.set_page_config(page_title="MTU Health Care Chatbot", page_icon="💬", layout="centered")
+st.sidebar.title("About")
+st.sidebar.info(
+    "This is an AI-powered health chatbot using a decision tree. "
+    "It will ask you about your symptoms and suggest possible conditions. "
+    "All data is local and private."
+)
+st.sidebar.markdown("**Instructions:**\n- Greet the bot to start\n- Answer Yes/No to symptoms\n- Get your result and advice")
+
+st.title("💬 MTU Health Care AI Powered Chatbot")
+
+# --- Session state ---
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+if "step" not in st.session_state:
+    st.session_state.step = "greet"
+if "tree_path" not in st.session_state:
+    st.session_state.tree_path = []
+if "symptoms_present" not in st.session_state:
+    st.session_state.symptoms_present = []
+if "disease" not in st.session_state:
+    st.session_state.disease = None
+if "other_symptoms" not in st.session_state:
+    st.session_state.other_symptoms = []
+
+# --- Helper functions ---
+feature_names = list(cols)
+tree_ = clf.tree_
+
+def get_next_symptom():
+    from sklearn.tree import _tree  # type: ignore
+    node = 0
+    for answer in st.session_state.tree_path:
+        if answer == 1:
+            node = tree_.children_right[node]
+        else:
+            node = tree_.children_left[node]
+    if tree_.feature[node] != _tree.TREE_UNDEFINED:
+        return feature_names[tree_.feature[node]], node
+    else:
+        return None, node
+
+def get_disease_and_symptoms(node):
+    from sklearn.tree import _tree  # type: ignore
+    present_disease = le.inverse_transform(tree_.value[node][0].nonzero()[0])
+    if len(present_disease) > 0:
+        diss = present_disease[0]
+    else:
+        diss = "Unknown"
+    red_cols = reduced_data.columns
+    symptoms_given = red_cols[reduced_data.loc[[diss]].values[0].nonzero()]
+    return diss, list(symptoms_given)
+
+# --- Chat UI ---
+def display_messages():
+    for msg in st.session_state.messages:
+        if msg["role"] == "user":
+            st.markdown(f"**You:** {msg['content']}")
+        else:
+            st.markdown(f"**Bot:** {msg['content']}")
+
+display_messages()
+
+if st.session_state.step == "greet":
+    user_input = st.text_input("Type your greeting to start:", key="greet_input")
+    if user_input:
+        st.session_state.messages.append({"role": "user", "content": user_input})
+        if user_input.lower() in ["bye", "exit"]:
+            st.session_state.messages.append({"role": "bot", "content": "Bye! take care.."})
+            st.session_state.step = "done"
+        elif greeting(user_input) is not None:
+            bot_greet = greeting(user_input)
+            st.session_state.messages.append({"role": "bot", "content": bot_greet})
+            st.session_state.messages.append({"role": "bot", "content": "Please reply Yes or No for the following symptoms"})
+            st.session_state.step = "symptoms"
+        else:
+            st.session_state.messages.append({"role": "bot", "content": "I am sorry! I don't understand you"})
+        st.experimental_rerun()
+
+elif st.session_state.step == "symptoms":
+    symptom, node = get_next_symptom()
+    if symptom:
+        st.session_state.messages.append({"role": "bot", "content": f"Do you have {symptom}?"})
+        col1, col2 = st.columns(2)
+        if col1.button("Yes", key=f"yes_{node}"):
+            st.session_state.tree_path.append(1)
+            st.session_state.symptoms_present.append(symptom)
+            st.experimental_rerun()
+        if col2.button("No", key=f"no_{node}"):
+            st.session_state.tree_path.append(0)
+            st.experimental_rerun()
+    else:
+        diss, other_symptoms = get_disease_and_symptoms(node)
+        st.session_state.disease = diss
+        st.session_state.other_symptoms = other_symptoms
+        st.session_state.step = "result"
+        st.experimental_rerun()
+
+elif st.session_state.step == "result":
+    diss = st.session_state.disease
+    other_symptoms = st.session_state.other_symptoms
+    st.session_state.messages.append({"role": "bot", "content": f"You may have **{diss}**"})
+    st.session_state.messages.append({"role": "bot", "content": "Symptoms present: " + ', '.join(st.session_state.symptoms_present)})
+    st.session_state.messages.append({"role": "bot", "content": "Other symptoms: " + ', '.join(other_symptoms)})
+    risk = consult.get(diss, 0)
+    consult_doc = ['YES', 'NO']
+    if risk > 50:
+        st.session_state.messages.append({"role": "bot", "content": "You should consult a doctor as soon as possible"})
+        data1 = [risk, 0]
+    else:
+        st.session_state.messages.append({"role": "bot", "content": "You may consult a doctor"})
+        data1 = [0, risk]
+    fig, ax = plt.subplots()
+    ax.bar(consult_doc, data1, color='red', width=0.15)
+    ax.set_ylim(0, 100)
+    ax.set_ylabel('Risk')
+    ax.set_xlabel('Consult a doctor')
+    st.pyplot(fig)
+    if st.button("Restart"):
+        for key in ["messages", "step", "tree_path", "symptoms_present", "disease", "other_symptoms"]:
+            if key in st.session_state:
+                del st.session_state[key]
+        st.experimental_rerun()
+
+elif st.session_state.step == "done":
+    st.session_state.messages.append({"role": "bot", "content": "Session ended. Refresh to start again."})
+    display_messages()    
