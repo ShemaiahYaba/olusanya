@@ -108,17 +108,17 @@ elif st.session_state.step == 'symptoms':
         if col1.button("Yes", key=f"yes_{node}"):
             st.session_state.tree_path.append(1)
             st.session_state.symptoms_present.append(symptom)
-            st.experimental_rerun()
+            st.rerun()
         if col2.button("No", key=f"no_{node}"):
             st.session_state.tree_path.append(0)
-            st.experimental_rerun()
+            st.rerun()
     else:
         # Leaf node reached
         diss, other_symptoms = get_disease_and_symptoms(node)
         st.session_state.disease = diss
         st.session_state.other_symptoms = other_symptoms
         st.session_state.step = 'result'
-        st.experimental_rerun()
+        st.rerun()
 
 elif st.session_state.step == 'result':
     diss = st.session_state.disease
@@ -144,7 +144,7 @@ elif st.session_state.step == 'result':
         for key in ["step", "symptom_idx", "symptoms_present", "tree_path", "disease", "other_symptoms"]:
             if key in st.session_state:
                 del st.session_state[key]
-        st.experimental_rerun()
+        st.rerun()
 
 elif st.session_state.step == 'done':
     st.write("Session ended. Refresh to start again.") 
