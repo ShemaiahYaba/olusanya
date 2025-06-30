@@ -1,10 +1,9 @@
 #using the concept of decision-tree
-
 import pandas as pd
 import numpy as np
 import random
 from sklearn import preprocessing
-from sklearn.tree import DecisionTreeClassifier,_tree
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.model_selection import train_test_split
 from sklearn import model_selection
 
@@ -64,6 +63,8 @@ def print_disease(node):
 def tree_to_code(tree, feature_names):
     tree_ = tree.tree_
     
+    from sklearn.tree import _tree  # Fix: import _tree
+
     feature_name = [
         feature_names[i] if i != _tree.TREE_UNDEFINED else "undefined!"
         for i in tree_.feature
@@ -100,13 +101,12 @@ def tree_to_code(tree, feature_names):
             print( "MTU-HEALTH-CARE-AI-POWERED-CHATBOT: You may have " +diss)
             red_cols = reduced_data.columns 
             symptoms_given = red_cols[reduced_data.loc[present_disease].values[0].nonzero()]
-            print("MTU-HEALTH-CARE-AI-POWERED-CHATBOT: symptoms present " +dis)
-            indexx=np.arange(1,len(symptoms_given)+1)
-            data=pd.DataFrame(list(symptoms_given),index=[indexx],columns=['OTHER SYMPTOMS'])
+            print("MTU-HEALTH-CARE-AI-POWERED-CHATBOT: symptoms present " + dis)
+            data = pd.DataFrame({'OTHER SYMPTOMS': list(symptoms_given)})
             print(data)
             import csv
-            f=open('doc_consult.csv','r')
-            read=csv.reader(f)
+            with open('doc_consult.csv', 'r') as f:
+                read = csv.reader(f)
             consult={}
             consult_doc=[' YES','NO']
             

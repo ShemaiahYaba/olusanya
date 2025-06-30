@@ -37,3 +37,39 @@ We're excited to have you experience the future of healthcare with MTU HEALTH CA
 
 This project is licensed under the MIT License.
 
+## How to Deploy on Streamlit Cloud (Trealit)
+
+1. **Push your code to GitHub**
+   - Make sure your repository contains the following files:
+     - `app.py` (the Streamlit app)
+     - `requirements.txt` (dependencies)
+     - `Training.csv`, `Testing.csv`, `doc_consult.csv` (data files)
+     - `README.md` (this file)
+
+2. **Sign in to [Streamlit Cloud](https://streamlit.io/cloud) (Trealit)**
+   - Use your GitHub account to sign in.
+
+3. **Create a new app**
+   - Click 'New app'.
+   - Select your repository and branch.
+   - Set the main file path to `app.py`.
+
+4. **Deploy**
+   - Click 'Deploy'.
+   - The app will build and launch. You can share the link with others!
+
+## Local Development
+
+To run locally:
+
+```bash
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+---
+
+**Note:**
+- All required CSV files must be present in the root of your repository for the app to work.
+- If you update your code or data, Streamlit Cloud will automatically rebuild your app.
+
